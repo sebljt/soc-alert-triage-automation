@@ -94,4 +94,76 @@ These templates will be used later when Splunk starts creating cases.
   - confirm the server appears as “connected” / green. [web:6]
 - Test pull:
   - publish a small test event in MISP,
-  - en
+  - ensure TheHive can list or import MISP events as alerts.
+- Test push:
+  - create a dummy case in TheHive,
+  - add a couple of IP observables,
+  - mark them as IOCs and export to MISP into a new event. [web:15]
+
+At this point:
+- MISP has data,
+- TheHive can pull from and push to MISP,
+- You have case templates ready for later Splunk automation.
+
+---
+
+## Stage 4 – Plan Splunk Integration (design only for now)
+
+*(Implementation later, once MISP+TheHive are stable.)*
+
+### 4.1 Decide data flow
+
+- Target future flow:
+  - WatchGuard IPS/syslog → Splunk.
+  - Splunk correlations → enrichment (MISP feed data + AbuseIPDB).
+  - High‑severity results → create cases in TheHive (using “WatchGuard IPS Incident” template).
+  - Confirmed IOCs in cases → pushed back into MISP.
+
+Document this design now so your project report shows clear intent even before Splunk is configured.
+
+### 4.2 Define what Splunk will use from MISP/TheHive
+
+- From MISP:
+  - IP/domain IOCs and tags pulled as:
+    - CSV/JSON exports into Splunk lookups, or
+    - direct API queries (later).
+- From TheHive:
+  - Case IDs and attributes for:
+    - manual reporting,
+    - root cause analysis.
+
+---
+
+## Stage 5 – Evidence and Repo Structure
+
+### 5.1 Capture evidence for this phase
+
+- Screenshots (for later report):
+  - MISP dashboard with feeds or test events.
+  - MISP auth keys page (with key redacted).
+  - TheHive UI showing:
+    - organisations and users,
+    - case templates,
+    - connected MISP server,
+    - a test case created from MISP data and a case exported to MISP.
+
+### 5.2 Store in your private GitHub repo
+
+- Files to add now:
+  - `plan/Phase1-MISP-TheHive.md` (this file).
+  - `misp/setup-notes.md` – commands/config you ran (no secrets).
+  - `thehive/setup-notes.md` – install/config notes (no secrets).
+- Create a simple checklist in `README.md` for Phase 1:
+
+  ```markdown
+  ## Phase 1 – MISP + TheHive
+
+  - [ ] MISP VM deployed and reachable
+  - [ ] MISP admin configured and test event created
+  - [ ] MISP API key created for integrations
+  - [ ] TheHive installed and UI reachable
+  - [ ] Org/users/roles created in TheHive
+  - [ ] Case templates created
+  - [ ] MISP server configured in TheHive
+  - [ ] Pull from MISP to TheHive tested
+  - [ ] Push from TheHive to MISP tested
