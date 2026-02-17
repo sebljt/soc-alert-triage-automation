@@ -1,1 +1,155 @@
 # EPA-project
+# Project Plan – Intelligence-Driven Alert Correlation and Triage Automation
+
+## Stage 1 – Planning and Design
+
+### Scope and success criteria
+- Project title: *Developing an Intelligence-Driven Alert Correlation and Triage Automation System*.
+- Outcomes covered: S21, S25, S26, S28, S29, S30.
+- Key deliverables: Incident Response Plan, configured SIEM, enrichment logic, anomaly rules, demonstration incident, root cause analysis write-ups.
+
+### Logical architecture
+- Components and roles:
+  - WatchGuard Firebox / WatchGuard Cloud – primary network monitor and IPS alert source.
+  - Splunk – SIEM for ingesting WatchGuard syslog, correlation and dashboards.
+  - MISP and AbuseIPDB – threat intelligence and IP reputation for source/destination IPs.
+  - TheHive – case/ticketing style workflow for incidents (PSA-like).
+- Data flow: **WatchGuard IPS/syslog → Splunk → enrichment (MISP/AbuseIPDB) → TheHive → analyst**.
+
+### Incident scenario selection
+- Select one non‑major but realistic scenario based on a WatchGuard IPS “Action: drop” alert to a critical web server.
+- Re‑use this scenario for detection, analysis, IR Plan demonstration, and the incident manager report.
+
+---
+
+## Stage 2 – Monitoring Architecture (S28)
+
+### Log ingestion into Splunk
+- Configure WatchGuard / WatchGuard Cloud to send logs and IPS alerts via syslog to a syslog receiver or directly to Splunk.
+- In Splunk, configure a UDP/TCP input (and optionally the WatchGuard add‑on) so fields like source IP, destination IP, ports, protocol, rule ID, action and policy name are parsed and searchable.
+
+### Baseline normal behaviour
+- Run searches over a sample period on the WatchGuard index to understand normal inbound/outbound traffic and typical IPS activity.
+- Capture notes and screenshots as a baseline to justify anomaly rules later.
+
+---
+
+## Stage 3 – Threat Intelligence and Enrichment (S25)
+
+### Integrate threat intelligence sources
+- Deploy and configure:
+  - MISP as the main threat intelligence platform for curated indicators.
+  - AbuseIPDB as an IP reputation source for source/destination IPs.
+- Integrate TheHive with MISP so confirmed indicators from cases can be pushed to MISP.
+
+### Implement enrichment in Splunk
+- Build lookups or commands that enrich WatchGuard IPS events with:
+  - AbuseIPDB confidence scores, categories, last reported time.
+  - MISP tags or IOC matches.
+- Create example searches showing IPS events before and after enrichment.
+
+### Tool configuration driven by threat intelligence
+- Use specific intel (e.g. high AbuseIPDB score or MISP match) to justify changes to:
+  - Splunk correlation rule thresholds.
+  - WatchGuard IPS / firewall policies.
+  - Severity/tagging logic in Splunk.
+- Document: intel source → configuration change → observed effect.
+
+---
+
+## Stage 4 – Anomaly Detection and Correlation (S26)
+
+### Correlation rules using WatchGuard IPS alerts
+- Design 2–3 Splunk correlation searches based on WatchGuard IPS “Action: drop” events, for example:
+  - Multiple IPS drops from the same source IP against different internal hosts within N minutes.
+  - IPS drops on HTTP/HTTPS to a critical web server from unusual countries/ASNs.
+  - Spikes in IPS rule IDs linked to known exploit attempts.
+- For each rule, record purpose, fields used, thresholds, and rationale.
+
+### Link correlation to enrichment
+- Extend these searches to:
+  - Use AbuseIPDB data to raise severity when a source IP has a high confidence score.
+  - Flag events where source or destination IPs match MISP indicators.
+- Keep sample events where threat intel changed triage (e.g. similar IPS alerts, but only enriched/high‑risk ones open a TheHive case).
+
+---
+
+## Stage 5 – Automated Triage and Ticket Creation (S21)
+
+### SIEM → TheHive integration
+- Configure Splunk alerts/correlation searches so high‑severity WatchGuard IPS alerts create cases in TheHive via API/webhook.
+- Case templates should include:
+  - Original WatchGuard IPS details (rule ID, policy name, action, IPs, ports).
+  - Enrichment info from AbuseIPDB and MISP.
+  - Initial severity and priority for the support desk.
+
+### Formal Incident Response Plan
+- Write an Incident Response Plan using NIST CSF phases (Identify, Protect, Detect, Respond, Recover).
+- For each phase, specify:
+  - What the support desk does when a WatchGuard IPS alert fires in Splunk.
+  - Where they check enrichment (AbuseIPDB/MISP).
+  - How TheHive is used for escalation and documentation.
+  - When firewall/IPS policies or Splunk rules are changed.
+
+---
+
+## Stage 6 – Incident Demonstration (S30)
+
+### Run the WatchGuard‑based scenario
+- Simulate or wait for a suitable non‑major IPS “Action: drop” event against a key service that matches the chosen scenario.
+- Confirm the end‑to‑end flow:
+  - WatchGuard generates the IPS alert.
+  - Splunk ingests, correlates and enriches it.
+  - A high‑severity alert triggers a case in TheHive.
+
+### Apply the Incident Response Plan
+- Follow the IR Plan step‑by‑step:
+  - Confirm detection in Splunk using the IPS alert and correlated events.
+  - Analyse enriched data (AbuseIPDB/MISP).
+  - Decide containment/monitoring actions (e.g. tighten rules, block IP/range).
+  - Record actions and communications in TheHive.
+- Emphasise the human decision point before any permanent blocking.
+
+### Incident manager report
+- Produce a narrative report for this IPS‑driven incident, covering:
+  - Overview and timeline.
+  - How the WatchGuard alert was detected and triaged in Splunk.
+  - Threat intel used and how it influenced decisions.
+  - Final actions and lessons learned.
+
+---
+
+## Stage 7 – Root Cause Analysis and Tuning (S29)
+
+### Root cause analysis for several events
+- Select:
+  - The main IPS‑based incident.
+  - At least one noisy IPS alert that was a false positive.
+  - At least one case that suggests a missed/late detection (possible false negative).
+- For each, perform RCA: technical cause, monitoring behaviour, lessons learned.
+
+### Reducing false positives and false negatives
+- Tune:
+  - IPS/firewall policies (exceptions or stricter rules).
+  - Splunk correlation thresholds/time windows.
+  - Severity mappings based on threat intel.
+- Show before/after examples demonstrating reduced false positives and improved detection.
+
+---
+
+## Stage 8 – Final Write‑Up and Declarations
+
+### Project report structure
+- Suggested sections:
+  - Introduction and project description.
+  - Architecture and WatchGuard/Splunk monitoring configuration (S28).
+  - Threat intelligence and correlation with MISP/AbuseIPDB (S25).
+  - Anomaly detection and IPS‑based correlation rules (S26).
+  - Incident Response Plan (S21).
+  - IPS incident demonstration and incident manager report (S30).
+  - Root cause analysis and tuning (S29).
+- Clearly signpost where each KSB/outcome and Defend & Respond requirement is evidenced.
+
+### Declarations
+- Complete and sign the Scenario Demonstrations declaration and the Project Report declaration with your employer/responsible person.
+- Ensure all evidence is your own work and sources are acknowledged.
