@@ -1,0 +1,49 @@
+# Build Log
+
+> Quick running notes of what I did, when I did it, and anything that broke or changed.
+
+---
+
+## 2026-02-18
+
+### MISP / TheHive / Cortex (Docker)
+
+- [ ] Brought up stack with `docker compose up -d`. 
+
+did this multiple issues with my yml file intially allthough i dont really recall what they were AI assisted in fixing some of thwese issues for me 
+
+- [ ] Confirmed web UIs:
+  - [ ] MISP reachable on https://localhost (or mapped host name/port).
+
+misp sorted no issue 
+  - [ ] TheHive reachable on http://localhost:9000.
+  - [ ] Cortex reachable on http://localhost:9001.
+- Notes:
+  - TODO: ...
+
+---
+
+## 2026-02-19
+
+### MISP configuration
+
+- [ ] Set MISP base URL.
+- [ ] Created admin account.
+- [ ] Created first test event with sample IP IOCs.
+- [ ] Generated API key for TheHive integration.
+- Notes:
+  - TODO: ...
+
+---
+
+## 2026-02-20
+
+### TheHive configuration
+
+- [ ] Created organisation + user.
+- [ ] Added MISP server (URL + API key) in TheHive.
+- [ ] Tested:
+  - [ ] Pull MISP event into TheHive.
+  - [ ] Push observables from TheHive to MISP.
+- Notes:
+  - TODO: ...
