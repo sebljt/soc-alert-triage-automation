@@ -3,6 +3,32 @@
 > Quick running notes of what I did, when I did it, and anything that broke or changed.
 
 ---
+# SOC Lab Build Log - WatchGuard T185 + Splunk Flow
+*Sunday, March 01, 2026 1:50 PM GMT*
+
+## 🛠️ **Build Timeline & Fixes**
+
+**Feb 19, 2026 - Initial Setup**
+TheHive 5.2 + Cortex 4.0 + MISP docker-compose UP
+
+Elasticsearch OOM → Fixed: 4GB swapfile + ES_JAVA_OPTS="-Xms1g -Xmx1g"
+
+Cortex analyzers failing → Fixed: docker group + /var/run/docker.sock mount
+
+/tmp/cortex-jobs permissions → Fixed: chmod 1777 + chown 1000:1000
+
+Docker socket inside container → Fixed: usermod cortex → docker group
+
+text
+
+**Mar 01, 2026 - Analyzer Validation**
+✅ FileInfo analyzer: Working (no API key)
+✅ MaxMindGeoIP: Working
+✅ VirusTotal_GetReport_3_1: Ready (needs VT API key)
+✅ Test IOCs validated:
+
+Hash: 275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c453
+
 
 ## 2026-02-18
 
