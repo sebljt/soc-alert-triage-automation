@@ -1,0 +1,236 @@
+# SOC Stack Setup Documentation
+## TheHive 5 + MISP + Cortex + Splunk Integration
+
+---
+
+## Overview
+
+This document covers the setup of a SOC (Security Operations Centre) stack using Docker, including TheHive 5, MISP, Cortex, and integration with Splunk Enterprise for alert forwarding.
+
+**Server Details:**
+- Docker host: `10.0.11.22` (internal) / `51.52.158.142` (public)
+- Splunk host: `168.231.113.85`
+
+---
+
+## 1. Docker Stack Deployment
+
+The stack was deployed using Docker Compose with the following services:
+
+- **TheHive 5** – Case management platform
+- **Cassandra** – Database backend for TheHive
+- **Elasticsearch** – Index backend for TheHive
+- **MinIO** – S3-compatible object storage for TheHive
+- **Cortex** – Analysis and response engine
+- **MISP** – Threat intelligence platform
+- **MISP MySQL** – Database backend for MISP
+- **Redis** – Cache for MISP
+- **MISP Modules** – Enrichment modules for MISP
+- **Nginx** – Reverse proxy for HTTPS access
+
+All services were connected via a Docker bridge network called `SOC_NET`.
+
+---
+
+## 2. Nginx Reverse Proxy Configuration
+
+Nginx was configured as a reverse proxy to provide HTTPS access to TheHive and MISP on separate ports.
+
+**Final working nginx.conf:**
+
+```nginx
+# THEHIVE PROXY
+server {
+    listen 443 ssl default_server;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/ssl/thehive.crt;
+    ssl_certificate_key /etc/nginx/ssl/thehive.key;
+
+    location / {
+        proxy_pass http://thehive:9000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+    }
+}
+
+# MISP PROXY
+server {
+    listen 444 ssl default_server;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/ssl/thehive.crt;
+    ssl_certificate_key /etc/nginx/ssl/thehive.key;
+
+    location / {
+        proxy_pass https://misp.local:443;
+        proxy_set_header Host $host:444;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_verify off;
+        proxy_redirect https://10.0.11.22/ https://10.0.11.22:444/;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+    }
+}
+```
+
+**Key points:**
+- `server_name _;` matches any hostname including bare IPs
+- `default_server` ensures correct routing by port
+- TheHive is proxied over HTTP internally (port 9000)
+- MISP is proxied over HTTPS internally (port 443) as the MISP container handles its own SSL
+- `proxy_http_version 1.1` is required to support chunked responses from TheHive 5
+
+**Access URLs:**
+- TheHive: `https://10.0.11.22`
+- MISP: `https://10.0.11.22:444`
+- Cortex: `http://10.0.11.22:9001`
+
+---
+
+## 3. SSL Certificate Generation
+
+A self-signed SSL certificate was generated with the server's public IP as the Subject Alternative Name (SAN), which is required for external connections:
+
+```bash
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout ~/docker-compose/ssl/thehive.key \
+  -out ~/docker-compose/ssl/thehive.crt \
+  -subj "/CN=51.52.158.142" \
+  -addext "subjectAltName=IP:51.52.158.142,IP:10.0.11.22"
+```
+
+> **Important:** The certificate must include the public IP as a SAN. A certificate issued only for `localhost` or the internal IP will fail SSL verification from external hosts like Splunk.
+
+---
+
+## 4. Splunk Integration – TA-TheHive-Cortex
+
+### 4.1 Install the App
+
+Install **TA-TheHive-Cortex** (version 3.9.0) from Splunkbase:
+```
+https://splunkbase.splunk.com/app/5401
+```
+
+Also install the **Splunk Common Information Model (CIM)** app as a required dependency:
+```
+https://splunkbase.splunk.com/app/1621
+```
+
+### 4.2 Fix Deprecated Password API
+
+The app uses a deprecated Splunk password API that causes the UI to fail on newer versions of Splunk Enterprise. Patch it directly:
+
+```bash
+sed -i 's/_get_all_passwords()/get_clear_passwords_in_realm()/g' \
+  /opt/splunk/etc/apps/TA-thehive-cortex/bin/ta_thehive_cortex/aob_py3/splunktaucclib/rest_handler/credentials.py
+```
+
+Restart Splunk after patching:
+```bash
+/opt/splunk/bin/splunk restart
+```
+
+### 4.3 Create the Instances Lookup
+
+The app uses a CSV lookup to store instance configuration. Create the lookup directory and file:
+
+```bash
+mkdir -p /opt/splunk/etc/apps/TA-thehive-cortex/lookups
+
+cat > /opt/splunk/etc/apps/TA-thehive-cortex/lookups/thehive_cortex_instances.csv << 'EOF'
+id,type,organisation,host,port,uri,authentication_type,account_name,verify_cert,client_cert,proxy_url,proxy_account
+Production_TheHive,TheHive5,LJT Systems,51.52.158.142,443,/,api_key,TheHive_Admin,0,-,-,-
+EOF
+```
+
+Register the lookup definition:
+```bash
+cat > /opt/splunk/etc/apps/TA-thehive-cortex/local/transforms.conf << 'EOF'
+[thehive_cortex_instances]
+filename = thehive_cortex_instances.csv
+EOF
+```
+
+### 4.4 Configure the Account
+
+Generate an API key in TheHive:
+1. Log into TheHive → click your username (top right)
+2. Go to **Settings → API Key → Create**
+3. Copy the key
+
+Add the account to the app config:
+```bash
+cat >> /opt/splunk/etc/apps/TA-thehive-cortex/local/ta_thehive_cortex_account.conf << 'EOF'
+
+[TheHive_Admin]
+username = apikey
+password = YOUR_THEHIVE_API_KEY_HERE
+EOF
+```
+
+### 4.5 Add the SSL Certificate to the App's CA Bundle
+
+Append the self-signed certificate to the app's certifi bundle so Splunk can verify the connection:
+
+```bash
+cat >> /opt/splunk/etc/apps/TA-thehive-cortex/bin/ta_thehive_cortex/aob_py3/certifi/cacert.pem << 'EOF'
+-----BEGIN CERTIFICATE-----
+<PASTE YOUR thehive.crt CONTENT HERE>
+-----END CERTIFICATE-----
+EOF
+```
+
+Restart Splunk:
+```bash
+/opt/splunk/bin/splunk restart
+```
+
+### 4.6 Firewall Rules
+
+Ensure the following ports are open on the Docker host firewall:
+- **443** – TheHive (inbound from Splunk IP)
+- **444** – MISP (inbound from browser)
+
+Port 9000 (TheHive internal) should **not** be exposed externally as nginx handles all external traffic on 443.
+
+---
+
+## 5. Verify the Integration
+
+### 5.1 Verify the instance is registered
+
+In Splunk search, run:
+```
+| inputlookup thehive_cortex_instances
+```
+
+This should return one row showing `Production_TheHive`.
+
+### 5.2 Create a test alert
+
+1. Run any search in Splunk that returns results, e.g. `index=* | head 1`
+2. Click **Save As → Alert**
+3. Set trigger condition and under **Trigger Actions → Add Actions** select **TheHive - Create a new alert**
+4. Set Instance to `Production_TheHive`, add a title and save
+5. Check TheHive → **Alerts** for the incoming alert from Splunk
+
+---
+
+## 6. File Summary
+
+| File | Location | Purpose |
+|------|----------|---------|
+| `nginx.conf` | `~/docker-compose/nginx.conf` | Nginx reverse proxy config |
+| `docker-compose.yml` | `~/docker-compose/docker-compose.yml` | Docker stack definition |
+| `thehive_cortex_instances.csv` | `/opt/splunk/etc/apps/TA-thehive-cortex/lookups/` | TheHive instance config |
+| `ta_thehive_cortex_account.conf` | `/opt/splunk/etc/apps/TA-thehive-cortex/local/` | TheHive API credentials |
+| `transforms.conf` | `/opt/splunk/etc/apps/TA-thehive-cortex/local/` | Lookup definition |
+| `thehive.crt` / `thehive.key` | `~/docker-compose/ssl/` | SSL certificate and key |
