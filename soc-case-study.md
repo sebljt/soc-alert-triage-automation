@@ -54,8 +54,8 @@ call, following a documented response plan.
 | `auto_enrich` (Python) | Automation between TheHive, Cortex and Teams | Scheduled job |
 | Microsoft Teams | SOC notification channel | Microsoft 365 tenant |
 
-Internal service endpoints in this write-up use placeholder addresses (e.g.
-`http://10.0.0.10:9000` for TheHive, `:9001` for Cortex). Real addressing is not published.
+Internal service endpoints in this write-up use placeholder hostnames (e.g.
+`http://thehive.internal:9000` for TheHive, `:9001` for Cortex). Real addressing is not published.
 
 ## Pipeline detail
 
@@ -95,9 +95,9 @@ variables, never hard-coded** — in the sanitised form:
 ```python
 import os
 
-THEHIVE_URL   = os.environ["THEHIVE_URL"]     # e.g. http://10.0.0.10:9000
+THEHIVE_URL   = os.environ["THEHIVE_URL"]     # e.g. http://thehive.internal:9000
 THEHIVE_KEY   = os.environ["THEHIVE_KEY"]      # scoped API key
-CORTEX_URL    = os.environ["CORTEX_URL"]       # e.g. http://10.0.0.10:9001
+CORTEX_URL    = os.environ["CORTEX_URL"]       # e.g. http://cortex.internal:9001
 CORTEX_KEY    = os.environ["CORTEX_KEY"]
 ABUSEIPDB_ID  = os.environ["ABUSEIPDB_ANALYSER_ID"]
 TEAMS_WEBHOOK = os.environ["TEAMS_WEBHOOK"]    # Adaptive Card destination
